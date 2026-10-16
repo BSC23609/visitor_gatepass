@@ -1,1 +1,6 @@
-{"functions":{"api/passes.js":{"maxDuration":15}}}
+{
+  "functions": {
+    "api/onedrive.js": { "maxDuration": 30 },
+    "api/passes.js": { "maxDuration": 15 }
+  }
+}

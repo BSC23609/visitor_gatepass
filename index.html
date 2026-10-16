@@ -826,7 +826,7 @@ function makePdf(canvas){
 }
 
 /* ---------- Save the PDF + Excel log row to OneDrive (automatically on Submit; Print and Download PDF reuse it) ---------- */
-const ONEDRIVE_URL = 'https://gate-pass-nine.vercel.app/api/visitor-onedrive';
+const ONEDRIVE_URL = 'https://visitor-gatepass.vercel.app/api/onedrive';
 let odSavedPass = '', odBusy = null;
 function setOdState(state, msg){
   $('popOd').hidden = false;
