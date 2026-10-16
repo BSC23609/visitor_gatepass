@@ -174,6 +174,15 @@
   .pop-actions{display:flex;flex-wrap:wrap;gap:8px;justify-content:center}
   .pop-actions .btn{flex:1 1 auto;white-space:nowrap;padding-inline:14px}
   .pop .note{margin-top:10px}
+  .pop-save{display:flex;align-items:center;justify-content:center;gap:8px;flex-wrap:wrap;margin:-6px 0 16px;font-size:13px;font-weight:600}
+  .pop-save[data-state="saving"]{color:var(--muted)}
+  .pop-save[data-state="saved"]{color:var(--ok)}
+  .pop-save[data-state="failed"]{color:var(--danger)}
+  .pop-save .dot{width:9px;height:9px;border-radius:50%;background:currentColor;flex-shrink:0}
+  .pop-save[data-state="saving"] .dot{animation:pulse 1s ease-in-out infinite}
+  @keyframes pulse{50%{opacity:.25}}
+  .db-status{display:block;margin-top:4px;font-size:12.5px;font-weight:600}
+  .db-status.ok{color:var(--ok)} .db-status.bad{color:var(--danger)}
   .pop .note:empty{display:none}
 
   /* ---------- ID card preview ---------- */
@@ -373,7 +382,7 @@
       <div class="form-msg" id="formMsg" role="alert"></div>
       <button type="submit" class="btn btn-primary submit-btn" id="submitBtn">Submit &amp; Generate Pass</button>
       <div class="done" id="doneBox" hidden>
-        <div><strong>Gate pass generated.</strong> <span id="doneText"></span></div>
+        <div><strong>Gate pass generated.</strong> <span id="doneText"></span><span class="db-status" id="dbStatus"></span></div>
         <div class="done-actions" id="dlActions">
           <button type="button" class="btn btn-amber btn-sm" id="pdfBtn">Download PDF</button>
           <button type="button" class="btn btn-outline btn-sm" id="pngBtn">Download Image</button>
@@ -436,6 +445,10 @@
       <dt>To meet</dt><dd id="popMeet"></dd>
       <dt>Date &amp; time</dt><dd id="popWhen"></dd>
     </dl>
+    <div class="pop-save" id="popSave" data-state="saving" role="status">
+      <span class="dot"></span><span id="popSaveText">Saving to database…</span>
+      <button type="button" class="btn btn-outline btn-sm" id="popRetry" hidden>Try again</button>
+    </div>
     <div class="pop-actions">
       <button type="button" class="btn btn-amber" id="popPdf">Download PDF</button>
       <button type="button" class="btn btn-outline" id="popPng">Download Image</button>
@@ -695,7 +708,54 @@ $('passForm').addEventListener('submit', e => {
   $('submitBtn').textContent = 'Submitted';
   $('dlNote').textContent = '';
   openPopup();
+  saveToDatabase();
 });
+
+/* ---------- Save each pass to the Neon database (through the Vercel API) ---------- */
+const SAVE_URL = 'https://visitor-gatepass.vercel.app/api/passes';
+let savedPassNo = '';
+function setSaveState(state, msg){
+  $('popSave').dataset.state = state;
+  $('popSaveText').textContent = msg;
+  $('popRetry').hidden = state !== 'failed';
+  const d = $('dbStatus');
+  d.textContent = state === 'saving' ? '' : msg;
+  d.className = 'db-status' + (state === 'saved' ? ' ok' : state === 'failed' ? ' bad' : '');
+}
+async function saveToDatabase(){
+  if(savedPassNo === passNo){ setSaveState('saved', 'Saved to database ✓'); return; }
+  setSaveState('saving', 'Saving to database…');
+  const record = {
+    pass_no: passNo,
+    company: $('companyName').value.trim(),
+    visitor_name: $('visitor').value.trim(),
+    person_to_meet: $('meet').value.trim(),
+    department: $('dept').value,
+    visit_date: $('date').value,
+    entry_time: $('time').value,
+    purpose: $('purpose').value.trim(),
+    photo: $('photoPrev').getAttribute('src') || null,
+    security_signature: hasSig ? $('cSig').getAttribute('src') : null
+  };
+  const forPass = passNo;
+  try{
+    const ctrl = new AbortController();
+    const timer = setTimeout(() => ctrl.abort(), 20000);
+    const res = await fetch(SAVE_URL, {
+      method: 'POST', headers: {'Content-Type': 'application/json'},
+      body: JSON.stringify(record), signal: ctrl.signal
+    });
+    clearTimeout(timer);
+    const out = await res.json().catch(() => ({}));
+    if(forPass !== passNo) return;           // form changed meanwhile
+    if(res.ok && out.ok){ savedPassNo = forPass; setSaveState('saved', 'Saved to database ✓'); }
+    else setSaveState('failed', 'Not saved: ' + (out.error || ('server error ' + res.status)) + '.');
+  }catch(err){
+    if(forPass !== passNo) return;
+    setSaveState('failed', 'Not saved: no connection to the database. Check the internet and try again.');
+  }
+}
+$('popRetry').addEventListener('click', saveToDatabase);
 
 /* ---------- Success popup ---------- */
 let lastFocus = null;

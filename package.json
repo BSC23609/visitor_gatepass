@@ -1,0 +1,9 @@
+{
+  "name": "visitor-gatepass",
+  "version": "1.0.0",
+  "private": true,
+  "type": "module",
+  "dependencies": {
+    "pg": "8.11.3"
+  }
+}
